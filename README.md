@@ -10,7 +10,7 @@ Apache License, Version 2.0
 mkdir build && cd build && cmake .. && make && cd..
 ```
 
-# Lancement
+## Lancement
 
 ```sh
 build/main
