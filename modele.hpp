@@ -25,6 +25,7 @@ namespace immou {
 
 struct Economie {
   double inflation;  // pourcents annuels
+  bool loyer_augmente_avec_inflation;
   double AppliquerInflation(int mois, double montant) const {
     return montant * std::pow(1 + inflation / 100, mois / 12);
   }
@@ -38,8 +39,10 @@ struct Bien {
   double loyer_hors_charges;    // euros par mois hors charges
   double charges_recuperables;  // euros par mois
   double loyer_charges_comprises(int mois) const {
-    return economie.AppliquerInflation(
-        mois, loyer_hors_charges + charges_recuperables);
+    return (economie.loyer_augmente_avec_inflation
+                ? economie.AppliquerInflation(mois, loyer_hors_charges)
+                : loyer_hors_charges) +
+           economie.AppliquerInflation(mois, charges_recuperables);
   }
   double charges_copro;  // euros prevus par mois
   double charges_non_recuperables(int mois) const {
@@ -112,12 +115,16 @@ struct Emprunt {
 
 struct Profil {
   double revenu_fiscal_de_reference;  // euros declares l'annee precedente
+  double taux_loc_avantages;
   double taux_marginal() const {
     if (revenu_fiscal_de_reference >= 160336) return 0.45;
     if (revenu_fiscal_de_reference >= 74545) return 0.41;
     if (revenu_fiscal_de_reference >= 26070) return 0.3;
     if (revenu_fiscal_de_reference >= 10225) return 0.11;
     return 0;
+  }
+  double reduction_impot(double revenu_locatif_brut_hc) const {
+    return revenu_locatif_brut_hc * taux_loc_avantages / 100.0;
   }
 };
 
@@ -126,7 +133,9 @@ class Simulation {
  public:
   // euros par mois
   double revenu_brut(int mois) const {
-    return economie.AppliquerInflation(mois, bien.loyer_hors_charges);
+    return economie.loyer_augmente_avec_inflation
+               ? economie.AppliquerInflation(mois, bien.loyer_hors_charges)
+               : bien.loyer_hors_charges;
   }
   // euros pour un mois donne
   double revenu_net(int mois) const {
@@ -164,17 +173,14 @@ class Simulation {
   double impot_sur_le_revenu(int mois) const {
     return std::max(
                0., revenu_net_avec_frais_amortis(mois) - csg_deductible(mois)) *
-           profil.taux_marginal();
+               profil.taux_marginal() -
+           profil.reduction_impot(revenu_brut(mois));
   }
-  // double revenu_net_net(int mois) const {
-  //   return std::max(0., revenu_net(mois) - prelevements_sociaux(mois) -
-  //                           impot_sur_le_revenu(mois));
-  // }
 
   double recettes(int mois) const { return bien.loyer_charges_comprises(mois); }
   double depenses(int mois) const {
     double montant = 0;
-    montant += bien.taxe_fonciere;
+    montant += economie.AppliquerInflation(mois, bien.taxe_fonciere);
     montant += economie.AppliquerInflation(mois, bien.charges_copro);
     montant += bien.frais_de_gestion(mois);
     montant += bien.frais_amortis_de_mise_en_location(mois);
@@ -254,7 +260,8 @@ class Simulation {
         std::cout << std::setw(7) << (100.0 - 100.0 * ratio_net_brut) << "%,";
         std::cout << std::setw(10) << impot_sur_le_revenu(mois) << ",";
         std::cout << std::setw(10)
-                  << (prelevements_sociaux(mois) + impot_sur_le_revenu(mois))
+                  << (prelevements_sociaux(mois) + impot_sur_le_revenu(mois) +
+                      economie.AppliquerInflation(mois, bien.taxe_fonciere))
                   << ",";
         std::cout << std::setw(11) << benefices(mois) << ",";
         std::cout << std::setw(11) << benefices_cumules << ",";

@@ -21,7 +21,8 @@ namespace immou {
 
 struct Instances {
   static void LeMillion() {
-    const Economie economie{.inflation = 1};
+    const Economie economie{.inflation = 1,
+                            .loyer_augmente_avec_inflation = false};
     const Bien bien{.economie = economie,
                     .surface = 50.0,
                     .prix = 500000.00,
